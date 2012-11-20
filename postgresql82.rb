@@ -33,6 +33,7 @@ class Postgresql82 < Formula
 
     args << "--with-python" unless ARGV.include? '--no-python'
     args << "--with-perl" unless ARGV.include? '--no-perl'
+    args << '--enable-integer-datetimes' unless ARGV.include? '--no-int-datetime'
 
     args << "--with-ossp-uuid"
     ENV.append 'CFLAGS', `uuid-config --cflags`.strip
