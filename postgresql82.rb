@@ -25,12 +25,13 @@ class Postgresql82 < Formula
     args = ["--disable-debug",
             "--prefix=#{prefix}",
             "--enable-thread-safety",
-            "--with-bonjour",
-            "--with-gssapi",
-            "--with-krb5",
-            "--with-openssl",
-            "--with-libxml", "--with-libxslt"]
+            "--with-libxml",
+            "--with-libxslt"]
 
+    args << "--with-openssl" unless ARGV.include? '--no-openssl'
+    args << "--with-krb5" unless ARGV.include? '--no-krb5'
+    args << "--with-gssapi" unless ARGV.include? '--no-gssapi'
+    args << "--with-bonjour" unless ARGV.include? '--no-bonjour'
     args << "--with-python" unless ARGV.include? '--no-python'
     args << "--with-perl" unless ARGV.include? '--no-perl'
     args << '--enable-integer-datetimes' unless ARGV.include? '--no-int-datetime'
