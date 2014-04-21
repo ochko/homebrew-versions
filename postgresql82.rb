@@ -7,7 +7,7 @@ class Postgresql82 < Formula
   sha1 'd019c70af279979ba6896561925c481fe340b79b'
 
   depends_on 'readline'
-  depends_on 'libxml2' if MACOS_VERSION < 10.6 # Leopard libxml is too old
+  depends_on 'libxml2' if MacOS.version == :leopard # Leopard libxml is too old
   depends_on 'ossp-uuid'
 
   def options
@@ -20,7 +20,7 @@ class Postgresql82 < Formula
   skip_clean :all
 
   def install
-    ENV.libxml2 if MACOS_VERSION >= 10.6
+    ENV.libxml2 if MacOS.version >= :snow_leopard
 
     args = ["--disable-debug",
             "--prefix=#{prefix}",
