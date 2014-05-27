@@ -7,8 +7,6 @@ class Postgresql94 < Formula
   sha256 '0e088eff79bb5171b2233222a25d7a2906eaf62aa86266daf6ec5217b1797f47'
   head 'http://git.postgresql.org/git/postgresql.git'
 
-  keg_only 'The different provided versions of PostgreSQL conflict with each other.'
-
   option '32-bit'
   option 'with-gcc', 'Build with GCC'
   option 'no-perl', 'Build without Perl support'
@@ -28,7 +26,7 @@ class Postgresql94 < Formula
   depends_on 'ossp-uuid' => :recommended
   depends_on 'python' => :optional
 
-  conflicts_with 'postgres-xc',
+  conflicts_with 'postgres-xc', 'postgresql',
     :because => 'postgresql and postgres-xc install the same binaries.'
 
   fails_with :clang do
