@@ -1,33 +1,22 @@
 require 'formula'
 
-def build_gui?
-  ARGV.include? '--with-gui'
-end
-
 class Postgis15 < Formula
   homepage 'http://postgis.refractions.net'
-  url 'http://postgis.refractions.net/download/postgis-1.5.3.tar.gz'
-  sha1 'e8c572e0258ba760a67b7f717bdc8321b9f6cd58'
+  url 'http://download.osgeo.org/postgis/source/postgis-1.5.8.tar.gz'
+  sha1 'a3637851ba9dd4f29576c9dc60254e9f53abc559'
 
-  depends_on 'postgresql'
+  keg_only "Conflicts with postgis in main repository."
+
+  option 'with-gui', 'Build sh2pgsql-gui in addition to CLI tools'
+
+  depends_on 'postgresql9'
   depends_on 'proj'
   depends_on 'geos'
-
-  depends_on 'gtk+' if build_gui?
-
-  def options
-    [
-      ['--with-gui', 'Build shp2pgsql-gui in addition to command line tools']
-    ]
-  end
-
-  # PostGIS command line tools intentionally have unused symbols in
-  # them---these are callbacks for liblwgeom.
-  skip_clean :all
+  depends_on 'gtk+' if build.with? 'gui'
 
   def install
     ENV.deparallelize
-    postgresql = Formula.factory 'postgresql'
+    postgresql = Formula["postgresql9"]
 
     args = [
       "--disable-dependency-tracking",
@@ -39,7 +28,7 @@ class Postgis15 < Formula
       # Postgresql keg.
       "--with-pgconfig=#{postgresql.bin}/pg_config"
     ]
-    args << '--with-gui' if build_gui?
+    args << '--with-gui' if build.with? 'gui'
 
     system './configure', *args
     system 'make'
@@ -65,7 +54,7 @@ class Postgis15 < Formula
       loader/shp2pgsql
       utils/new_postgis_restore.pl
     ]
-    bin.install 'loader/shp2pgsql-gui' if build_gui?
+    bin.install 'loader/shp2pgsql-gui' if build.with? 'gui'
 
     # Install PostGIS 1.x upgrade scripts
     postgis_sql.install %w[
@@ -95,7 +84,7 @@ class Postgis15 < Formula
   end
 
   def caveats;
-    postgresql = Formula.factory 'postgresql'
+    postgresql = Formula["postgresql9"]
 
     <<-EOS.undent
       To create a spatially-enabled database, see the documentation:

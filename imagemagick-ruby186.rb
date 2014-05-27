@@ -5,60 +5,44 @@
 require 'formula'
 
 # some credit to http://github.com/maddox/magick-installer
-# NOTE please be aware that the GraphicsMagick formula derives this formula
-
-def ghostscript_srsly?
-  ARGV.include? '--with-ghostscript'
-end
 
 class ImagemagickRuby186 < Formula
   homepage 'http://www.imagemagick.org'
-  url 'http://image_magick.veidrodis.com/image_magick/ImageMagick-6.5.9-8.tar.bz2'
-  sha1 'bb292ff860cebf76bfed9df68289abb76d408e34'
+  url 'http://download.sourceforge.net/project/imagemagick/old-sources/6.x/6.5/ImageMagick-6.5.9-10.tar.gz'
+  sha1 'cd60f630037f659dc8833afa1b283321ec91b3dc'
 
   depends_on 'jpeg'
   depends_on 'libwmf' => :optional
   depends_on 'libtiff' => :optional
   depends_on 'little-cms' => :optional
   depends_on 'jasper' => :optional
-  depends_on 'ghostscript' => :recommended if ghostscript_srsly?
-  depends_on :libpng
-
-  skip_clean :la
-
-  def options
-    [['--with-ghostscript', 'Enable ghostscript support']]
-  end
-
-  def fix_configure
-    # versioned stuff in main tree is pointless for us
-    inreplace 'configure', '${PACKAGE_NAME}-${PACKAGE_VERSION}', '${PACKAGE_NAME}'
-  end
-
-  def configure_args
-    args = ["--prefix=#{prefix}",
-     "--disable-dependency-tracking",
-     "--enable-shared",
-     "--disable-static",
-     "--with-modules",
-     "--without-magick-plus-plus"]
-
-     args << "--disable-openmp" if MacOS.version < 10.6   # libgomp unavailable
-     args << '--without-ghostscript' \
-          << "--with-gs-font-dir=#{HOMEBREW_PREFIX}/share/ghostscript/fonts" \
-             unless ghostscript_srsly?
-     return args
-  end
+  depends_on 'ghostscript' => :optional
+  depends_on 'libpng12' # needs this old libpng. Not tested with 1.3 but 1.4 fails.
+  depends_on :x11 => :optional
 
   def install
     ENV.deparallelize
 
-    fix_configure
+    # versioned stuff in main tree is pointless for us
+    inreplace 'configure', '${PACKAGE_NAME}-${PACKAGE_VERSION}', '${PACKAGE_NAME}'
 
-    system "./configure", "--without-maximum-compile-warnings",
-                          "--disable-osx-universal-binary",
-                          "--without-perl", # I couldn't make this compile
-                          *configure_args
+    args = [ "--prefix=#{prefix}",
+             "--disable-dependency-tracking",
+             "--enable-shared",
+             "--without-maximum-compile-warnings",
+             "--disable-osx-universal-binary",
+             "--disable-static",
+             "--with-modules",
+             "--without-perl", # I couldn't make this compile
+             "--disable-openmp",
+             "--without-magick-plus-plus" ]
+
+     args << "--without-x" if build.without? 'x11'
+     if build.with? 'ghostscript'
+       args << '--without-ghostscript'
+       args << "--with-gs-font-dir=#{HOMEBREW_PREFIX}/share/ghostscript/fonts"
+     end
+    system "./configure", *args
     system "make install"
 
     # We already copy these into the keg root
@@ -67,4 +51,3 @@ class ImagemagickRuby186 < Formula
     (share+"ImageMagick/ChangeLog").unlink
   end
 end
-

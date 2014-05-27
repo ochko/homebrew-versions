@@ -12,8 +12,8 @@ class Mapnik071 < Formula
   depends_on 'proj'
   depends_on 'icu4c'
   depends_on 'boost'
+  depends_on 'freetype'
   depends_on 'cairomm' => :optional
-  depends_on :freetype
 
   def install
     # Allow compilation against boost 1.46
@@ -21,10 +21,7 @@ class Mapnik071 < Formula
       "#include <boost/filesystem/operations.hpp>",
       "#define BOOST_FILESYSTEM_VERSION 2\n#include <boost/filesystem/operations.hpp>"
 
-    icu = Formula.factory("icu4c")
-    system "scons",
-        "PREFIX=#{prefix}",
-        "ICU_INCLUDES=#{icu.include}", "ICU_LIBS=#{icu.lib}",
-        "install"
+    icu = Formula["icu4c"]
+    scons "PREFIX=#{prefix}", "ICU_INCLUDES=#{icu.include}", "ICU_LIBS=#{icu.lib}", "install"
   end
 end

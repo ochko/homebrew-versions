@@ -1,39 +1,36 @@
 require 'formula'
 
-def build_java?; ARGV.include? "--java"; end
-def build_perl?; ARGV.include? "--perl"; end
-def build_python?; ARGV.include? "--python"; end
-def build_ruby?; ARGV.include? "--ruby"; end
-def build_universal?; ARGV.build_universal?; end
-def with_unicode_path?; ARGV.include? '--unicode-path'; end
-
-# On 10.5 we need newer versions of apr, neon etc.
-# On 10.6 we only need a newer version of neon
-class SubversionDeps < Formula
-  url 'http://subversion.tigris.org/downloads/subversion-deps-1.6.17.tar.bz2'
-  sha1 'ebfda3416c09a91dbcf744a22ea83ed827ad3495'
-end
-
 class Subversion16 < Formula
   homepage 'http://subversion.apache.org/'
-  url 'http://subversion.tigris.org/downloads/subversion-1.6.17.tar.bz2'
-  sha1 '6e3ed7c87d98fdf5f0a999050ab601dcec6155a1'
+  url 'http://archive.apache.org/dist/subversion/subversion-1.6.23.tar.bz2'
+  sha1 '578c0ec69227db041e67ade40ac4cf2ebe2cf54a'
 
   depends_on 'pkg-config' => :build
 
   # On Snow Leopard, build a new neon. For Leopard, the deps above include this.
   depends_on 'neon' if MacOS.version >= :snow_leopard
 
-  def options
-    [
-      ['--java', 'Build Java bindings.'],
-      ['--perl', 'Build Perl bindings.'],
-      ['--python', 'Build Python bindings.'],
-      ['--ruby', 'Build Ruby bindings.'],
-      ['--universal', 'Build as a Universal Intel binary.'],
-      ['--unicode-path', 'Include support for OS X unicode (but see caveats!)']
-    ]
+  option :universal
+  option 'java', 'Build Java bindings'
+  option 'perl', 'Build Perl bindings'
+  option 'python', 'Build Python bindings'
+  option 'ruby', 'Build Ruby bindings'
+  option 'unicode-path', 'Include support for OS X unicode (see caveats)'
+
+  # On 10.5 we need newer versions of apr, neon etc.
+  # On 10.6 we only need a newer version of neon
+  resource 'deps' do
+    url 'http://archive.apache.org/dist/subversion/subversion-deps-1.6.23.tar.bz2'
+    sha1 '6fe844c2bdc3c139a97f70b146e6a1e5ae2c26f0'
   end
+
+
+  def build_java?; build.include? "java"; end
+  def build_perl?; build.include? "perl"; end
+  def build_python?; build.include? "python"; end
+  def build_ruby?; build.include? "ruby"; end
+  def build_universal?; build.universal?; end
+  def with_unicode_path?; build.include? 'unicode-path'; end
 
   def patches
     # Patch to find Java headers
@@ -51,13 +48,13 @@ class Subversion16 < Formula
 
   def setup_leopard
     # Slot dependencies into place
-    d=Pathname.getwd
-    SubversionDeps.new.brew { d.install Dir['*'] }
+    d = Pathname.getwd
+    resource("deps").stage { d.install Dir['*'] }
   end
 
   def check_neon_arch
     # Check that Neon was built universal if we are building w/ --universal
-    neon = Formula.factory('neon')
+    neon = Formula["neon"]
     if neon.installed?
       neon_arch = archs_for_command(neon.lib+'libneon.dylib')
       unless neon_arch.universal?
@@ -100,6 +97,9 @@ class Subversion16 < Formula
             "--disable-neon-version-check",
             "--disable-mod-activation",
             "--without-apache-libexecdir",
+            # Don't try to use httpd, because the one included
+            # with more recent versions of OS X is incompatible.
+            "--without-apxs",
             "--without-berkeley-db"]
 
     args << "--enable-javahl" << "--without-jikes" if build_java?
@@ -130,7 +130,7 @@ class Subversion16 < Formula
       end
 
       # Use version-appropriate system Perl
-     if MacOS.version == :leopard
+      if MacOS.version == :leopard
         perl_version = "5.8.8"
       else
         perl_version = "5.10.0"

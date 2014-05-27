@@ -2,8 +2,8 @@ require 'formula'
 
 class Hdf4 < Formula
   homepage 'http://www.hdfgroup.org'
-  url 'http://www.hdfgroup.org/ftp/HDF/releases/HDF4.2.8/src/hdf-4.2.8.tar.bz2'
-  sha1 '9d4ab457ccb8e582c265ca3f5f2ec90614d89da4'
+  url 'http://www.hdfgroup.org/ftp/HDF/releases/HDF4.2.10/src/hdf-4.2.10.tar.bz2'
+  sha1 '5163543895728dabb536a0659b3d965d55bccf74'
 
   option 'enable-fortran', 'Build Fortran interface.'
 
@@ -11,15 +11,16 @@ class Hdf4 < Formula
   depends_on 'pkg-config' => :build
   depends_on 'szip'
   depends_on 'jpeg'
+  depends_on :fortran if build.include? 'enable-fortran'
 
   def patches
-    # Fix a couple of buglets in CMakeLists that showed up post-4.2.6. These
-    # need to be reported upstream.
+    # redefine library name to "df" from "hdf".  this seems to be an artifact
+    # of using cmake that needs to be corrected for compatibility with
+    # anything depending on hdf4.
     DATA
   end
 
   def install
-    ENV.fortran if build.include? 'enable-fortran'
     ENV['SZIP_INSTALL'] = HOMEBREW_PREFIX
 
     args = std_cmake_args
@@ -58,61 +59,16 @@ class Hdf4 < Formula
   end
 end
 __END__
-Fix a couple of errors in the CMake configuration that showed up after 4.2.6:
-
-  * Don't pass the NAMES attribute to FIND_PACKAGE as this makes it impossible
-    to find anything.
-  * Don't define _POSIX_SOURCE as this causes incorrect typedefs for parameters
-    like u_int and u_long.
-
 diff --git a/CMakeLists.txt b/CMakeLists.txt
-index 7ccb383..39cc093 100644
+index ba2cf13..27a3df4 100644
 --- a/CMakeLists.txt
 +++ b/CMakeLists.txt
-@@ -457,7 +457,7 @@ OPTION (HDF4_ENABLE_JPEG_LIB_SUPPORT "Enable libjpeg" ON)
- IF (HDF4_ENABLE_JPEG_LIB_SUPPORT)
-   IF (NOT H4_JPEGLIB_HEADER)
-     IF (NOT JPEG_USE_EXTERNAL)
--      FIND_PACKAGE (JPEG NAMES ${JPEG_PACKAGE_NAME}${HDF_PACKAGE_EXT})
-+      FIND_PACKAGE (JPEG)
-     ENDIF (NOT JPEG_USE_EXTERNAL)
-     IF (JPEG_FOUND)
-       SET (H4_HAVE_JPEGLIB_H 1)
-@@ -504,7 +504,7 @@ OPTION (HDF4_ENABLE_Z_LIB_SUPPORT "Enable Zlib Filters" ON)
- IF (HDF4_ENABLE_Z_LIB_SUPPORT)
-   IF (NOT H4_ZLIB_HEADER)
-     IF (NOT ZLIB_USE_EXTERNAL)
--      FIND_PACKAGE (ZLIB NAMES ${ZLIB_PACKAGE_NAME}${HDF_PACKAGE_EXT})
-+      FIND_PACKAGE (ZLIB)
-     ENDIF (NOT ZLIB_USE_EXTERNAL)
-     IF (ZLIB_FOUND)
-       SET (H4_HAVE_FILTER_DEFLATE 1)
-@@ -542,7 +542,7 @@ OPTION (HDF4_ENABLE_SZIP_SUPPORT "Use SZip Filter" OFF)
- IF (HDF4_ENABLE_SZIP_SUPPORT)
-   OPTION (HDF4_ENABLE_SZIP_ENCODING "Use SZip Encoding" OFF)
-   IF (NOT SZIP_USE_EXTERNAL)
--    FIND_PACKAGE (SZIP NAMES ${SZIP_PACKAGE_NAME}${HDF_PACKAGE_EXT})
-+    FIND_PACKAGE (SZIP)
-   ENDIF (NOT SZIP_USE_EXTERNAL)
-   IF (SZIP_FOUND)
-     SET (H4_HAVE_FILTER_SZIP 1)
-@@ -971,4 +971,4 @@ IF (NOT HDF4_EXTERNALLY_CONFIGURED AND NOT HDF4_NO_PACKAGES)
-     )
-   ENDIF (HDF4_BUILD_UTILS)
- ENDIF (NOT HDF4_EXTERNALLY_CONFIGURED AND NOT HDF4_NO_PACKAGES)
--  
-\ No newline at end of file
-+  
-diff --git a/config/cmake/ConfigureChecks.cmake b/config/cmake/ConfigureChecks.cmake
-index eddb311..b13da01 100644
---- a/config/cmake/ConfigureChecks.cmake
-+++ b/config/cmake/ConfigureChecks.cmake
-@@ -233,7 +233,7 @@ IF (NOT WINDOWS)
-   IF (CYGWIN)
-     SET (HDF_EXTRA_FLAGS -D_BSD_SOURCE)
-   ELSE (CYGWIN)
--    SET (HDF_EXTRA_FLAGS -D_POSIX_SOURCE -D_BSD_SOURCE)
-+    SET (HDF_EXTRA_FLAGS -D_BSD_SOURCE)
-   ENDIF (CYGWIN)
-   OPTION (HDF_ENABLE_LARGE_FILE "Enable support for large (64-bit) files on Linux." ON)
-   IF (HDF_ENABLE_LARGE_FILE)
+@@ -95,7 +95,7 @@ MARK_AS_ADVANCED (HDF4_NO_PACKAGES)
+ # Set the core names of all the libraries
+ #-----------------------------------------------------------------------------
+ SET (HDF4_LIB_CORENAME              "hdf4")
+-SET (HDF4_SRC_LIB_CORENAME          "hdf")
++SET (HDF4_SRC_LIB_CORENAME          "df")
+ SET (HDF4_SRC_FCSTUB_LIB_CORENAME   "hdf_fcstub")
+ SET (HDF4_SRC_FORTRAN_LIB_CORENAME  "hdf_fortran")
+ SET (HDF4_MF_LIB_CORENAME           "mfhdf")

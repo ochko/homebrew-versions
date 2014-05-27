@@ -1,23 +1,15 @@
 require 'formula'
 
-class Node4 < Formula
+class Node04 < Formula
   homepage 'http://nodejs.org/'
   url 'http://nodejs.org/dist/node-v0.4.12.tar.gz'
   sha1 '1c6e34b90ad6b989658ee85e0d0cb16797b16460'
 
-  head 'https://github.com/joyent/node.git'
+  option 'enable-debug', 'Build with debugger hooks'
 
-  # Leopard OpenSSL is not new enough, so use our keg-only one
   depends_on 'openssl' if MacOS.version == :leopard
 
-  fails_with_llvm :build => 2326
-
-  # Stripping breaks dynamic loading
-  skip_clean :all
-
-  def options
-    [["--enable-debug", "Build with debugger hooks."]]
-  end
+  fails_with(:llvm) { build 2326 }
 
   def install
     inreplace 'wscript' do |s|
@@ -26,7 +18,7 @@ class Node4 < Formula
     end
 
     args = ["--prefix=#{prefix}"]
-    args << "--debug" if ARGV.include? '--enable-debug'
+    args << "--debug" if build.include? 'enable-debug'
 
     system "./configure", *args
     system "make install"

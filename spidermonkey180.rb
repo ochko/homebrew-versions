@@ -1,13 +1,5 @@
 require 'formula'
 
-# Private older version of autoconf required to compile Spidermonkey
-class Autoconf213 < Formula
-  homepage 'http://www.gnu.org/software/autoconf/'
-  url 'http://ftpmirror.gnu.org/autoconf/autoconf-2.13.tar.gz'
-  mirror 'http://ftp.gnu.org/gnu/autoconf/autoconf-2.13.tar.gz'
-  sha1 'e4826c8bd85325067818f19b2b2ad2b625da66fc'
-end
-
 class Spidermonkey180 < Formula
   homepage 'https://developer.mozilla.org/en/SpiderMonkey'
   # Pick a version that's known to work with CouchDB), revision r35345.
@@ -18,14 +10,21 @@ class Spidermonkey180 < Formula
   depends_on 'readline'
   depends_on 'nspr'
 
+  # Private older version of autoconf required to compile Spidermonkey
+  resource "autoconf213" do
+    url "http://ftpmirror.gnu.org/autoconf/autoconf-2.13.tar.gz"
+    mirror "http://ftp.gnu.org/gnu/autoconf/autoconf-2.13.tar.gz"
+    sha1 "e4826c8bd85325067818f19b2b2ad2b625da66fc"
+  end
+
   def install
     # aparently this flag causes the build to fail for ivanvc on 10.5 with a
     # penryn (core 2 duo) CPU. So lets be cautious here and remove it.
     ENV['CFLAGS'] = ENV['CFLAGS'].gsub(/-msse[^\s]+/, '') if MacOS.version == :leopard
 
     # For some reason SpiderMonkey requires Autoconf-2.13
-    ac213_prefix = Pathname.pwd.join('ac213')
-    Autoconf213.new.brew do |f|
+    ac213_prefix = buildpath/"ac213"
+    resource("autoconf213").stage do
       # Force use of plain "awk"
       inreplace 'configure', 'for ac_prog in mawk gawk nawk awk', 'for ac_prog in awk'
 
@@ -47,9 +46,7 @@ class Spidermonkey180 < Formula
         "-install_name #{lib}/$(SHARED_LIBRARY) "
     end
 
-    mkdir "brew-build"
-
-    cd "brew-build" do
+    mkdir "brew-build" do
       system "../js/src/configure", "--prefix=#{prefix}",
                                     "--enable-readline",
                                     "--enable-threadsafe",

@@ -1,15 +1,13 @@
 require 'formula'
 
-class ErlangR13Manuals < Formula
-  url 'http://www.erlang.org/download/otp_doc_man_R13B04.tar.gz'
-  sha1 '660e52302d270138f8e9f2f2b6a562026998012c'
-end
-
 class ErlangR13 < Formula
   homepage 'http://www.erlang.org'
   # Download from GitHub. Much faster than official tarball.
   url "https://github.com/erlang/otp.git", :tag => "OTP_R13B04"
   version 'R13B04'
+
+  option 'disable-hipe', 'Disable building hipe; fails on various OS X systems'
+  option 'time', '`brew test --time` to include a time-consuming test'
 
   # We can't strip the beam executables or any plugins, there isn't really
   # anything else worth stripping and it takes a really, long time to run
@@ -18,16 +16,18 @@ class ErlangR13 < Formula
   # may as well skip bin too, everything is just shell scripts
   skip_clean ['lib', 'bin']
 
-  def options
-    [
-      ['--disable-hipe', "Disable building hipe; fails on various OS X systems."],
-      ['--time', '"brew test --time" to include a time-consuming test.']
-    ]
+  fails_with :llvm do
+    build 2326
+    cause "See http://github.com/mxcl/homebrew/issues/issue/120"
+  end
+
+  resource 'man' do
+    url 'http://www.erlang.org/download/otp_doc_man_R13B04.tar.gz'
+    sha1 '660e52302d270138f8e9f2f2b6a562026998012c'
   end
 
   def install
     ENV.deparallelize
-    fails_with_llvm "See http://github.com/mxcl/homebrew/issues/issue/120", :build => 2326
 
     system "./otp_build autoconf" if File.exist? "otp_build"
 
@@ -38,30 +38,29 @@ class ErlangR13 < Formula
             "--enable-dynamic-ssl-lib",
             "--enable-smp-support"]
 
-    unless ARGV.include? '--disable-hipe'
+    unless build.include? 'disable-hipe'
       # HIPE doesn't strike me as that reliable on OS X
       # http://syntatic.wordpress.com/2008/06/12/macports-erlang-bus-error-due-to-mac-os-x-1053-update/
       # http://www.erlang.org/pipermail/erlang-patches/2008-September/000293.html
       args << '--enable-hipe'
     end
 
-    args << "--enable-darwin-64bit" if snow_leopard_64?
+    args << "--enable-darwin-64bit" if MacOS.prefer_64_bit?
 
     system "./configure", *args
-    system "touch lib/wx/SKIP" if MACOS_VERSION >= 10.6
+    system "touch lib/wx/SKIP" if MacOS.version >= :snow_leopard
     system "make"
     system "make install"
 
-    manuals = ErlangR13Manuals
-    manuals.new.brew { man.install Dir['man/*'] }
+    resource("man").stage { man.install Dir["man/*"] }
   end
 
-  def test
+  test do
     `erl -noshell -eval 'crypto:start().' -s init stop`
 
     # This test takes some time to run, but per bug #120 should finish in
     # "less than 20 minutes". It takes a few minutes on a Mac Pro (2009).
-    if ARGV.include? "--time"
+    if build.include? "time"
       `dialyzer --build_plt -r #{lib}/erlang/lib/kernel-2.14.1/ebin/`
     end
   end

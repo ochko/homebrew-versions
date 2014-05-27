@@ -2,27 +2,21 @@ require 'formula'
 
 class Mysql51 < Formula
   homepage 'http://dev.mysql.com/doc/refman/5.1/en/'
-  url 'http://mysql.mirrors.pair.com/Downloads/MySQL-5.1/mysql-5.1.65.tar.gz'
-  sha1 '9af3740d0a9f3fb2a9423500dd298b423867cf6e'
+  url 'http://mysql.mirrors.pair.com/Downloads/MySQL-5.1/mysql-5.1.73.tar.gz'
+  sha1 '6cb1c547dec873a0afda825c83fd8e5a32b9a619'
+
+  option :universal
+  option 'with-tests', 'Keep tests when installing'
+  option 'with-bench', 'Keep benchmark app when installing'
+  option 'with-embedded', 'Build the embedded server'
+  option 'client-only', 'Only install client tools, not the server'
+  option 'with-utf8-default', 'Set the default character set to utf8'
+
+  keg_only 'Conflicts with mysql, mariadb, percona-server, mysql-cluster, etc.'
 
   depends_on 'readline'
 
-  fails_with :clang do
-    build 421
-    cause "Reported not building with clang as of 2011.06.27"
-  end
-
-  option :universal
-
-  def options
-    [
-      ['--with-tests', "Keep tests when installing."],
-      ['--with-bench', "Keep benchmark app when installing."],
-      ['--with-embedded', "Build the embedded server."],
-      ['--client-only', "Only install client tools, not the server."],
-      ['--with-utf8-default', "Set the default character set to utf8"]
-    ]
-  end
+  fails_with :clang
 
   def patches
     DATA
@@ -49,9 +43,9 @@ class Mysql51 < Formula
       "--enable-shared",
       "--with-partition"]
 
-    configure_args << "--without-server" if ARGV.include? '--client-only'
-    configure_args << "--with-embedded-server" if ARGV.include? '--with-embedded'
-    configure_args << "--with-charset=utf8" if ARGV.include? '--with-utf8-default'
+    configure_args << "--without-server" if build.include? 'client-only'
+    configure_args << "--with-embedded-server" if build.with? 'embedded'
+    configure_args << "--with-charset=utf8" if build.with? 'utf8-default'
 
     system "./configure", *configure_args
     system "make install"
@@ -59,41 +53,20 @@ class Mysql51 < Formula
     ln_s "#{libexec}/mysqld", bin
     ln_s "#{share}/mysql/mysql.server", bin
 
-    (prefix+'mysql-test').rmtree unless ARGV.include? '--with-tests' # save 66MB!
-    (prefix+'sql-bench').rmtree unless ARGV.include? '--with-bench'
-
-    (prefix+'com.mysql.mysqld.plist').write startup_plist
+    (prefix+'mysql-test').rmtree if build.without? 'tests' # save 66MB!
+    (prefix+'sql-bench').rmtree if build.without? 'bench'
   end
 
   def caveats; <<-EOS.undent
     Set up databases with:
         unset TMPDIR
         mysql_install_db
-
-    If this is your first install, automatically load on login with:
-        mkdir -p ~/Library/LaunchAgents
-        cp #{prefix}/com.mysql.mysqld.plist ~/Library/LaunchAgents/
-        launchctl load -w ~/Library/LaunchAgents/com.mysql.mysqld.plist
-
-    If this is an upgrade and you already have the com.mysql.mysqld.plist loaded:
-        launchctl unload -w ~/Library/LaunchAgents/com.mysql.mysqld.plist
-        cp #{prefix}/com.mysql.mysqld.plist ~/Library/LaunchAgents/
-        launchctl load -w ~/Library/LaunchAgents/com.mysql.mysqld.plist
-
-    Note on upgrading:
-        We overwrite any existing com.mysql.mysqld.plist in ~/Library/LaunchAgents
-        if we are upgrading because previous versions of this brew created the
-        plist with a version specific program argument.
-
-    Or start manually with:
-        mysql.server start
-
-    This article may help in troubleshooting MySQL installs:
-        http://cloudbacon.com/2011/03/20/fixing-mysql-in-homebrew/
     EOS
   end
 
-  def startup_plist; <<-EOPLIST.undent
+  plist_options :manual => "mysql.server start"
+
+  def plist; <<-EOPLIST.undent
     <?xml version="1.0" encoding="UTF-8"?>
     <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
     <plist version="1.0">
@@ -101,13 +74,11 @@ class Mysql51 < Formula
       <key>KeepAlive</key>
       <true/>
       <key>Label</key>
-      <string>com.mysql.mysqld</string>
+      <string>#{plist_name}</string>
       <key>Program</key>
-      <string>#{bin}/mysqld_safe</string>
+      <string>#{opt_prefix}/bin/mysqld_safe</string>
       <key>RunAtLoad</key>
       <true/>
-      <key>UserName</key>
-      <string>#{`whoami`.chomp}</string>
       <key>WorkingDirectory</key>
       <string>#{var}</string>
     </dict>

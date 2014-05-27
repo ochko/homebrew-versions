@@ -4,7 +4,6 @@ class Jpeg6b < Formula
   homepage 'http://www.ijg.org'
   url 'http://www.ijg.org/files/jpegsrc.v6b.tar.gz'
   sha1 '7079f0d6c42fad0cfba382cf6ad322add1ace8f9'
-  version '6b'
 
   depends_on 'libtool' => :build
 

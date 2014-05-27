@@ -1,146 +1,136 @@
 require 'formula'
 
-def cxx?
-  ARGV.include? '--enable-cxx'
-end
-
-def fortran?
-  ARGV.include? '--enable-fortran'
-end
-
-def java?
-  ARGV.include? '--enable-java'
-end
-
-def objc?
-  ARGV.include? '--enable-objc'
-end
-
-def objcxx?
-  ARGV.include? '--enable-objcxx'
-end
-
-def build_everything?
-  ARGV.include? '--enable-all-languages'
-end
-
-def nls?
-  ARGV.include? '--enable-nls'
-end
-
-def profiledbuild?
-  ARGV.include? '--enable-profiled-build'
-end
-
-class Ecj < Formula
-  # Little Known Fact: ecj, Eclipse Java Complier, is required in order to
-  # produce a gcj compiler that can actually parse Java source code.
-  url 'ftp://sourceware.org/pub/java/ecj-4.5.jar'
-  sha1 '58c1d79c64c8cd718550f32a932ccfde8d1e6449'
-end
-
 class Gcc45 < Formula
-  homepage 'http://gcc.gnu.org'
-  url 'http://ftpmirror.gnu.org/gcc/gcc-4.5.3/gcc-4.5.3.tar.bz2'
-  mirror 'http://ftp.gnu.org/gnu/gcc/gcc-4.5.3/gcc-4.5.3.tar.bz2'
-  sha1 '73c45dfda5eef6b124be53e56828b5925198cc1b'
-
-  depends_on 'gmp'
-  depends_on 'libmpc'
-  depends_on 'mpfr'
-
-  def options
-    [
-      ['--enable-cxx', 'Build the g++ compiler'],
-      ['--enable-fortran', 'Build the gfortran compiler'],
-      ['--enable-java', 'Buld the gcj compiler'],
-      ['--enable-objc', 'Enable Objective-C language support'],
-      ['--enable-objcxx', 'Enable Objective-C++ language support'],
-      ['--enable-all-languages', 'Enable all compilers and languages, except Ada'],
-      ['--enable-nls', 'Build with natural language support'],
-      ['--enable-profiled-build', 'Make use of profile guided optimization when bootstrapping GCC']
-    ]
+  def arch
+    if Hardware::CPU.type == :intel
+      if MacOS.prefer_64_bit?
+        'x86_64'
+      else
+        'i686'
+      end
+    elsif Hardware::CPU.type == :ppc
+      if MacOS.prefer_64_bit?
+        'powerpc64'
+      else
+        'powerpc'
+      end
+    end
   end
 
-  # Dont strip compilers.
-  skip_clean :all
+  def osmajor
+    `uname -r`.chomp
+  end
+
+  homepage 'http://gcc.gnu.org'
+  url 'http://ftpmirror.gnu.org/gcc/gcc-4.5.4/gcc-4.5.4.tar.bz2'
+  mirror 'http://ftp.gnu.org/gnu/gcc/gcc-4.5.4/gcc-4.5.4.tar.bz2'
+  sha1 'cb692e6ddd1ca41f654e2ff24b1b57f09f40e211'
+
+  option 'enable-fortran', 'Build the gfortran compiler'
+  option 'enable-java', 'Build the gcj compiler'
+  option 'enable-all-languages', 'Enable all compilers and languages, except Ada'
+  option 'enable-nls', 'Build with native language support (localization)'
+  option 'enable-profiled-build', 'Make use of profile guided optimization when bootstrapping GCC'
+  # enabling multilib on a host that can't run 64-bit results in build failures
+  option 'disable-multilib', 'Build without multilib support' if MacOS.prefer_64_bit?
+
+  # with system ld on Tiger, build fails with countless messages of:
+  # "relocation overflow for relocation entry"
+  depends_on :ld64
+  depends_on 'gmp4'
+  depends_on 'libmpc08'
+  depends_on 'mpfr2'
+  depends_on 'ppl011'
+  depends_on 'cloog-ppl015'
+  depends_on 'ecj' if build.include? 'enable-java' or build.include? 'enable-all-languages'
+
+  def patches
+    { # Patches from macports
+      :p0 => [
+        # Fix libffi for ppc
+        'http://trac.macports.org/export/110576/trunk/dports/lang/gcc45/files/ppc_fde_encoding.diff',
+      ]
+    }
+  end
 
   def install
-    # Force 64-bit on systems that use it. Build failures reported for some
-    # systems when this is not done.
-    ENV.m64 if MacOS.prefer_64_bit?
+    # GCC bootstraps itself, so it is OK to have an incompatible C++ stdlib
+    cxxstdlib_check :skip
 
     # GCC will suffer build errors if forced to use a particular linker.
     ENV.delete 'LD'
 
-    # This is required on systems running a version newer than 10.6, and
-    # it's probably a good idea regardless.
-    #
-    # https://trac.macports.org/ticket/27237
-    ENV.append 'CXXFLAGS', '-U_GLIBCXX_DEBUG -U_GLIBCXX_DEBUG_PEDANTIC'
-
-    gmp = Formula.factory 'gmp'
-    mpfr = Formula.factory 'mpfr'
-    libmpc = Formula.factory 'libmpc'
-
-    # Sandbox the GCC lib, libexec and include directories so they don't wander
-    # around telling small children there is no Santa Claus. This results in a
-    # partially keg-only brew following suggestions outlined in the "How to
-    # install multiple versions of GCC" section of the GCC FAQ:
-    #     http://gcc.gnu.org/faq.html#multiple
-    gcc_prefix = prefix + 'gcc'
-
-    args = [
-      # Sandbox everything...
-      "--prefix=#{gcc_prefix}",
-      # ...except the stuff in share...
-      "--datarootdir=#{share}",
-      # ...and the binaries...
-      "--bindir=#{bin}",
-      # ...which are tagged with a suffix to distinguish them.
-      "--program-suffix=-#{version.to_s.slice(/\d\.\d/)}",
-      "--with-gmp=#{gmp.prefix}",
-      "--with-mpfr=#{mpfr.prefix}",
-      "--with-mpc=#{libmpc.prefix}",
-      "--with-system-zlib",
-      "--enable-stage1-checking",
-      "--enable-plugin",
-      "--disable-lto"
-    ]
-
-    args << '--disable-nls' unless nls?
-
-    if build_everything?
+    if build.include? 'enable-all-languages'
       # Everything but Ada, which requires a pre-existing GCC Ada compiler
       # (gnat) to bootstrap.
       languages = %w[c c++ fortran java objc obj-c++]
     else
-      # The C compiler is always built, but additional defaults can be added
-      # here.
-      languages = %w[c]
+      # C, C++, ObjC compilers are always built
+      languages = %w[c c++ objc obj-c++]
 
-      languages << 'c++' if cxx?
-      languages << 'fortran' if fortran?
-      languages << 'java' if java?
-      languages << 'objc' if objc?
-      languages << 'obj-c++' if objcxx?
+      languages << 'fortran' if build.include? 'enable-fortran'
+      languages << 'java' if build.include? 'enable-java'
     end
 
-    if java? or build_everything?
-      source_dir = Pathname.new Dir.pwd
+    version_suffix = version.to_s.slice(/\d\.\d/)
 
-      Ecj.new.brew do |ecj|
-        # Copying ecj.jar into the toplevel of the GCC source tree will cause
-        # gcc to automagically package it into the installation. It *must* be
-        # named ecj.jar and not ecj-version.jar in order for this to happen.
-        mv "ecj-#{ecj.version}.jar", (source_dir + 'ecj.jar')
-      end
+    args = [
+      "--build=#{arch}-apple-darwin#{osmajor}",
+      "--prefix=#{prefix}",
+      "--enable-languages=#{languages.join(',')}",
+      # Make most executables versioned to avoid conflicts.
+      "--program-suffix=-#{version_suffix}",
+      "--with-gmp=#{Formula["gmp4"].opt_prefix}",
+      "--with-mpfr=#{Formula["mpfr2"].opt_prefix}",
+      "--with-mpc=#{Formula["libmpc08"].opt_prefix}",
+      "--with-ppl=#{Formula["ppl011"].opt_prefix}",
+      "--with-cloog=#{Formula["cloog-ppl015"].opt_prefix}",
+      "--with-system-zlib",
+      # This ensures lib, libexec, include are sandboxed so that they
+      # don't wander around telling little children there is no Santa
+      # Claus.
+      "--enable-version-specific-runtime-libs",
+      "--enable-libstdcxx-time=yes",
+      "--enable-stage1-checking",
+      "--enable-checking=release",
+      # GCC 4.5 does not properly support LTO on Darwin.
+      "--disable-lto",
+      # A no-op unless --HEAD is built because in head warnings will
+      # raise errors. But still a good idea to include.
+      "--disable-werror"
+    ]
+
+    # "Building GCC with plugin support requires a host that supports
+    # -fPIC, -shared, -ldl and -rdynamic."
+    args << "--enable-plugin" if MacOS.version > :tiger
+
+    # Otherwise make fails during comparison at stage 3
+    # See: http://gcc.gnu.org/bugzilla/show_bug.cgi?id=45248
+    args << '--with-dwarf2' if MacOS.version < :leopard
+
+    args << '--disable-nls' unless build.include? 'enable-nls'
+
+    if build.include? 'enable-java' or build.include? 'enable-all-languages'
+      args << "--with-ecj-jar=#{Formula["ecj"].opt_prefix}/share/java/ecj.jar"
+    end
+
+    if !MacOS.prefer_64_bit? || build.include?('disable-multilib')
+      args << '--disable-multilib'
+    else
+      args << '--enable-multilib'
     end
 
     mkdir 'build' do
-      system '../configure', "--enable-languages=#{languages.join(',')}", *args
+      unless MacOS::CLT.installed?
+        # For Xcode-only systems, we need to tell the sysroot path.
+        # 'native-system-header's will be appended
+        args << "--with-native-system-header-dir=/usr/include"
+        args << "--with-sysroot=#{MacOS.sdk_path}"
+      end
 
-      if profiledbuild?
+      system '../configure', *args
+
+      if build.include? 'enable-profiled-build'
         # Takes longer to build, may bug out. Provided for those who want to
         # optimise all the way to 11.
         system 'make profiledbootstrap'
@@ -154,7 +144,43 @@ class Gcc45 < Formula
       system 'make install'
 
       # `make install` neglects to transfer an essential plugin header file.
-      Pathname.new(Dir[gcc_prefix.join *%w[** plugin include config]].first).install '../gcc/config/darwin-sections.def'
+      Pathname.new(Dir[prefix.join *%w[** plugin include config]].first).install '../gcc/config/darwin-sections.def' if MacOS.version > :tiger
     end
+
+    # Handle conflicts between GCC formulae.
+
+    # Remove libffi stuff, which is not needed after GCC is built.
+    Dir.glob(prefix/"**/libffi.*") { |file| File.delete file }
+
+    # Rename libiberty.a.
+    Dir.glob(prefix/"**/libiberty.*") { |file| add_suffix file, version_suffix }
+
+    # Rename man7.
+    Dir.glob(man7/"*.7") { |file| add_suffix file, version_suffix }
+
+    # Even when suffixes are appended, the info pages conflict when
+    # install-info is run. TODO fix this.
+    info.rmtree
+
+    # Rename java properties
+    if build.include? 'enable-java' or build.include? 'enable-all-languages'
+      config_files = [
+        "#{lib}/logging.properties",
+        "#{lib}/security/classpath.security",
+        "#{lib}/i386/logging.properties",
+        "#{lib}/i386/security/classpath.security"
+      ]
+
+      config_files.each do |file|
+        add_suffix file, version_suffix if File.exists? file
+      end
+    end
+  end
+
+  def add_suffix file, suffix
+    dir = File.dirname(file)
+    ext = File.extname(file)
+    base = File.basename(file, ext)
+    File.rename file, "#{dir}/#{base}-#{suffix}#{ext}"
   end
 end

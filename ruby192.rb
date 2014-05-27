@@ -2,35 +2,27 @@ require 'formula'
 
 class Ruby192 < Formula
   homepage 'http://www.ruby-lang.org/en/'
-  url 'http://ftp.ruby-lang.org/pub/ruby/1.9/ruby-1.9.2-p290.tar.bz2'
-  sha256 '403b3093fbe8a08dc69c269753b8c6e7bd8f87fb79a7dd7d676913efe7642487'
+  url 'http://cache.ruby-lang.org/pub/ruby/1.9/ruby-1.9.2-p320.tar.bz2'
+  sha256 '6777f865cfa21ffdc167fcc4a7da05cb13aab1bd9e59bfcda82c4b32f75e6b51'
 
-  head 'http://svn.ruby-lang.org/repos/ruby/trunk/'
-
-  depends_on :autoconf if build.head?
   depends_on 'pkg-config' => :build
   depends_on 'readline'
   depends_on 'gdbm'
   depends_on 'libyaml'
 
   option :universal
-  option 'with-suffix', 'Suffix commands with "19"'
+  option 'with-suffix', 'Suffix commands with "192"'
   option 'with-doc', 'Install documentation'
 
   fails_with :llvm do
     build 2326
   end
 
-  # Stripping breaks dynamic linking
-  skip_clean :all
-
   def install
-    system "autoconf" if build.head?
-
     args = %W[--prefix=#{prefix}
               --enable-shared]
 
-    args << "--program-suffix=19" if build.include? 'with-suffix'
+    args << "--program-suffix=192" if build.with? 'suffix'
     args << "--with-arch=x86_64,i386" if build.universal?
 
     # Put gem, site and vendor folders in the HOMEBREW_PREFIX
@@ -46,13 +38,13 @@ class Ruby192 < Formula
     system "./configure", *args
     system "make"
     system "make install"
-    system "make install-doc" if build.include? 'with-doc'
+    system "make install-doc" if build.with? 'doc'
 
   end
 
   def caveats; <<-EOS.undent
     NOTE: By default, gem installed binaries will be placed into:
-      #{bin}
+      #{opt_prefix}/bin
 
     You may want to add this to your PATH.
     EOS
