@@ -83,6 +83,7 @@ class Postgresql94 < Formula
 
     system "./configure", *args
     system "make install"
+    system "make -C contrib install"
   end
 
   def post_install
