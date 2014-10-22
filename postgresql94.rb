@@ -2,10 +2,12 @@ require 'formula'
 
 class Postgresql94 < Formula
   homepage 'http://www.postgresql.org/'
-  url 'http://ftp.postgresql.org/pub/source/v9.4beta1/postgresql-9.4beta1.tar.bz2'
-  version '9.4beta1'
-  sha256 '0e088eff79bb5171b2233222a25d7a2906eaf62aa86266daf6ec5217b1797f47'
-  head 'http://git.postgresql.org/git/postgresql.git'
+  url 'http://ftp.postgresql.org/pub/source/v9.4beta3/postgresql-9.4beta3.tar.bz2'
+  version '9.4beta3'
+  sha256 '5ad1d86a5b9a70d5c153dd862b306a930c6cf67fb4a3f00813eef19fabe6aa5d'
+  head 'http://git.postgresql.org/git/postgresql.git', :branch => 'REL9_4_STABLE'
+
+  keg_only 'The different provided versions of PostgreSQL conflict with each other.'
 
   option '32-bit'
   option 'with-gcc', 'Build with GCC'
@@ -17,14 +19,17 @@ class Postgresql94 < Formula
   option 'no-xslt', 'Build without XSLT support'
   option 'no-bonjour', 'Build without Bonjour support'
   option 'no-pam', 'Build without PAM support'
+  option 'with-e2fs', 'Build with e2fs for UUID support'
+  option 'with-ossp', 'Build with ossp for UUID support'
   option 'enable-dtrace', 'Build with DTrace support'
 
   depends_on 'openssl'
   depends_on 'gettext'
   depends_on 'readline'
   depends_on 'libxml2' => :optional
-  depends_on 'ossp-uuid' => :recommended
+  depends_on 'ossp-uuid' => :optional
   depends_on 'python' => :optional
+  depends_on 'e2fsprogs' => :recommended
 
   conflicts_with 'postgres-xc', 'postgresql',
     :because => 'postgresql and postgres-xc install the same binaries.'
@@ -32,15 +37,6 @@ class Postgresql94 < Formula
   fails_with :clang do
     build 211
     cause 'Miscompilation resulting in segfault on queries'
-  end
-
-  def patches
-    [
-     # Fix uuid-ossp build issues: http://archives.postgresql.org/pgsql-general/2012-07/msg00654.php
-     DATA,
-     # http://archives.postgresql.org/pgsql-general/2012-07/msg00654.php
-     'http://www.postgresql.org/message-id/attachment/32317/configure-uuid.patch',
-    ]
   end
 
   def install
@@ -56,7 +52,6 @@ class Postgresql94 < Formula
       --with-openssl
     ]
 
-    args << "--with-ossp-uuid" if build.with? 'ossp-uuid'
     args << "--with-python" if build.with? 'python'
     args << "--with-perl" unless build.include? 'no-perl'
     args << "--with-tcl" unless build.include? 'no-tcl'
@@ -68,7 +63,11 @@ class Postgresql94 < Formula
     args << "--with-pam" unless build.include? 'no-pam'
     args << "--enable-dtrace" if build.include? 'enable-dtrace'
 
-    if build.with? 'ossp-uuid'
+    if build.with? 'with-e2fs'
+      args << "--with-uuid=e2fs"
+    elsif build.with? 'with-ossp'
+      args << "--with-ossp-uuid"
+
       ENV.append 'CFLAGS', `uuid-config --cflags`.strip
       ENV.append 'LDFLAGS', `uuid-config --ldflags`.strip
       ENV.append 'LIBS', `uuid-config --libs`.strip
@@ -80,8 +79,15 @@ class Postgresql94 < Formula
     end
 
     system "./configure", *args
-    system "make install"
-    system "make -C contrib install"
+
+    if build.head?
+      # XXX Can't build docs using Homebrew-provided software, so skip
+      # it when building from Git.
+      system "make install"
+      system "make -C contrib install"
+    else
+      system "make install-world"
+    end
   end
 
   def post_install
@@ -98,6 +104,13 @@ class Postgresql94 < Formula
 
     To migrate existing data from a previous major version (pre-9.4) of PostgreSQL, see:
       http://www.postgresql.org/docs/9.4/static/upgrading.html
+
+    To use this PostgreSQL installation, do one or more of the following:
+
+    - Call all programs explicitly with #{opt_prefix}/bin/...
+    - Add #{opt_prefix}/bin to your PATH
+    - brew link -f #{name}
+    - Install the postgresql-common package
     EOS
 
     s << "\n" << gem_caveats if MacOS.prefer_64_bit?
@@ -146,17 +159,3 @@ class Postgresql94 < Formula
     system "#{bin}/initdb", testpath
   end
 end
-
-
-__END__
---- a/contrib/uuid-ossp/uuid-ossp.c	2012-07-30 18:34:53.000000000 -0700
-+++ b/contrib/uuid-ossp/uuid-ossp.c	2012-07-30 18:35:03.000000000 -0700
-@@ -9,6 +9,8 @@
-  *-------------------------------------------------------------------------
-  */
-
-+#define _XOPEN_SOURCE
-+
- #include "postgres.h"
- #include "fmgr.h"
- #include "utils/builtins.h"
