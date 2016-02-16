@@ -1,8 +1,8 @@
 class Postgresql94 < Formula
   desc "Object-relational database system"
   homepage "http://www.postgresql.org/"
-  url "https://ftp.postgresql.org/pub/source/v9.4.5/postgresql-9.4.5.tar.bz2"
-  sha256 "b87c50c66b6ea42a9712b5f6284794fabad0616e6ae420cf0f10523be6d94a39"
+  url "http://ftp.postgresql.org/pub/source/v9.4.6/postgresql-9.4.6.tar.bz2"
+  sha256 "cbce1f4d01a6142c5d8bebe125623c5198ec04f363da7dd3d3b3a4100b4140a6"
 
   bottle do
     sha256 "aa535574adf97a2e4801c97bf0d05cbb04fe4b1a9bdcdf75d32e57396e7c3aac" => :el_capitan
@@ -14,6 +14,8 @@ class Postgresql94 < Formula
   option "without-perl", "Build without Perl support"
   option "without-tcl", "Build without Tcl support"
   option "with-dtrace", "Build with DTrace support"
+
+  keg_only "The different provided versions of PostgreSQL conflict with each other."
 
   depends_on "openssl"
   depends_on "readline"

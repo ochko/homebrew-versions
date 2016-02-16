@@ -15,6 +15,8 @@ class Postgresql93 < Formula
   option "without-tcl", "Build without Tcl support"
   option "with-dtrace", "Build with DTrace support"
 
+  keg_only "The different provided versions of PostgreSQL conflict with each other."
+
   deprecated_option "no-perl" => "without-perl"
   deprecated_option "no-tcl" => "without-tcl"
   deprecated_option "enable-dtrace" => "with-dtrace"
