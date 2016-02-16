@@ -1,65 +1,51 @@
-# Ruby 1.8.6 requires a special version of imagemagick
-# We simply revived an earlier version and added the suffix.
-#   https://github.com/mxcl/homebrew/blob/685dbff9301c215ac6f7ca775bbe8eed2bf62662/Library/Formula/imagemagick.rb
-
-require 'formula'
-
-# some credit to http://github.com/maddox/magick-installer
-# NOTE please be aware that the GraphicsMagick formula derives this formula
-
-def ghostscript_srsly?
-  ARGV.include? '--with-ghostscript'
-end
-
 class ImagemagickRuby186 < Formula
-  homepage 'http://www.imagemagick.org'
-  url 'http://image_magick.veidrodis.com/image_magick/ImageMagick-6.5.9-8.tar.bz2'
-  sha1 'bb292ff860cebf76bfed9df68289abb76d408e34'
+  homepage "http://www.imagemagick.org"
+  url "https://download.sourceforge.net/project/imagemagick/old-sources/6.x/6.5/ImageMagick-6.5.9-10.tar.gz"
+  sha256 "2330183bdecfda05f0503dcbf9cc74bc313211717194a2dbe4e3074564e9c2df"
 
-  depends_on 'jpeg'
-  depends_on 'libwmf' => :optional
-  depends_on 'libtiff' => :optional
-  depends_on 'little-cms' => :optional
-  depends_on 'jasper' => :optional
-  depends_on 'ghostscript' => :recommended if ghostscript_srsly?
-  depends_on :libpng
-
-  skip_clean :la
-
-  def options
-    [['--with-ghostscript', 'Enable ghostscript support']]
+  bottle do
+    sha256 "2dd389cdca475b1a4dbdc3e0169f87ba86b7ea6bf44c6bd2b80f551a82589d78" => :yosemite
+    sha256 "f6005dc489e5c0589a6305105c62904168c1ac27b0b90e721b1d89a445f7ddcc" => :mavericks
+    sha256 "897d2e94a983c980cb3deb620273bd0ca81a9c2fa1df07d6fc6b42014b4729db" => :mountain_lion
   end
 
-  def fix_configure
-    # versioned stuff in main tree is pointless for us
-    inreplace 'configure', '${PACKAGE_NAME}-${PACKAGE_VERSION}', '${PACKAGE_NAME}'
-  end
-
-  def configure_args
-    args = ["--prefix=#{prefix}",
-     "--disable-dependency-tracking",
-     "--enable-shared",
-     "--disable-static",
-     "--with-modules",
-     "--without-magick-plus-plus"]
-
-     args << "--disable-openmp" if MacOS.version < 10.6   # libgomp unavailable
-     args << '--without-ghostscript' \
-          << "--with-gs-font-dir=#{HOMEBREW_PREFIX}/share/ghostscript/fonts" \
-             unless ghostscript_srsly?
-     return args
-  end
+  depends_on "jpeg"
+  depends_on "libwmf" => :optional
+  depends_on "libtiff" => :optional
+  depends_on "little-cms" => :optional
+  depends_on "jasper" => :optional
+  depends_on "ghostscript" => :optional
+  depends_on "libpng12" # needs this old libpng. Not tested with 1.3 but 1.4 fails.
+  depends_on :x11 => :optional
 
   def install
     ENV.deparallelize
 
-    fix_configure
+    # versioned stuff in main tree is pointless for us
+    inreplace "configure", "${PACKAGE_NAME}-${PACKAGE_VERSION}", "${PACKAGE_NAME}"
 
-    system "./configure", "--without-maximum-compile-warnings",
-                          "--disable-osx-universal-binary",
-                          "--without-perl", # I couldn't make this compile
-                          *configure_args
-    system "make install"
+    args = %W[
+      --prefix=#{prefix}
+      --disable-dependency-tracking
+      --enable-shared
+      --without-maximum-compile-warnings
+      --disable-osx-universal-binary
+      --disable-static
+      --with-modules
+      --without-perl
+      --disable-openmp
+      --without-magick-plus-plus
+    ]
+
+    args << "--without-x" if build.without? "x11"
+
+    if build.with? "ghostscript"
+      args << "--without-ghostscript"
+      args << "--with-gs-font-dir=#{HOMEBREW_PREFIX}/share/ghostscript/fonts"
+    end
+
+    system "./configure", *args
+    system "make", "install"
 
     # We already copy these into the keg root
     (share+"ImageMagick/NEWS.txt").unlink
@@ -67,4 +53,3 @@ class ImagemagickRuby186 < Formula
     (share+"ImageMagick/ChangeLog").unlink
   end
 end
-

@@ -1,20 +1,28 @@
-require 'formula'
-
 class Tomcat6 < Formula
-  homepage 'http://tomcat.apache.org/'
-  url 'http://archive.apache.org/dist/tomcat/tomcat-6/v6.0.33/bin/apache-tomcat-6.0.33.tar.gz'
-  sha1 '004bed8b2e231d3913249680a3b40d1f7f612f71'
+  desc "Implementation of Java Servlet and JavaServer Pages"
+  homepage "https://tomcat.apache.org/"
+  url "https://www.apache.org/dyn/closer.cgi?path=tomcat/tomcat-6/v6.0.45/bin/apache-tomcat-6.0.45.tar.gz"
+  sha256 "8f9bd3e02f1e7798ca8f99f3254594688307ced3e7325dfb10f336750d82482d"
 
-  skip_clean :all
+  bottle :unneeded
 
   keg_only "Some scripts that are installed conflict with other software."
 
+  option "with-fulldocs", "Install full documentation locally"
+
+  resource "fulldocs" do
+    url "https://www.apache.org/dyn/closer.cgi?path=/tomcat/tomcat-6/v6.0.45/bin/apache-tomcat-6.0.45-fulldocs.tar.gz"
+    version "6.0.45"
+    sha256 "aa1cbef0b73047425174731e1bea5567eacd6cbb7f9d7cd2c2495ba38fca2109"
+  end
+
   def install
-    rm_rf Dir['bin/*.{cmd,bat]}']
-    libexec.install Dir['*']
-    (libexec+'logs').mkpath
+    rm_rf Dir["bin/*.{cmd,bat]}"]
+    libexec.install Dir["*"]
+    (libexec+"logs").mkpath
     bin.mkpath
     Dir["#{libexec}/bin/*.sh"].each { |f| ln_s f, bin }
+    (share/"fulldocs").install resource("fulldocs") if build.with? "fulldocs"
   end
 
   def caveats; <<-EOS.undent

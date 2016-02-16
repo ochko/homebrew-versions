@@ -1,47 +1,49 @@
-require 'formula'
-
 class Node06 < Formula
-  homepage 'http://nodejs.org/'
-  url 'http://nodejs.org/dist/v0.6.21/node-v0.6.21.tar.gz'
-  sha1 '31f564bf34c64b07cae3b9a88a87b4a08bab4dc5'
+  homepage "https://nodejs.org/"
+  url "https://nodejs.org/dist/v0.6.21/node-v0.6.21.tar.gz"
+  sha256 "22265fd07e09c22f1d058156d548e7398c9740210f534e2f848eeab5b9772117"
+  revision 1
 
-  head 'https://github.com/joyent/node.git'
+  bottle do
+    revision 1
+    sha256 "1cd2e47454085ccf21ca1b5a6e9366ec0f6ba0f6d7f5bd20d08f830b3df70d48" => :yosemite
+    sha256 "b758f04ea1979adfe27cf6c4f161d98698d6056d8b0d1fe47071ffb702b1f81e" => :mavericks
+    sha256 "f863b0e8a60b16e18deac5d49ab4a85f75995cf09defcadd1cfd41eb366b7ef7" => :mountain_lion
+  end
 
-  # Leopard OpenSSL is not new enough, so use our keg-only one
-  depends_on 'openssl' if MacOS.version == :leopard
+  option "with-debug", "Build with debugger hooks"
+
+  deprecated_option "enable-debug" => "with-debug"
+
+  depends_on "openssl"
 
   fails_with :llvm do
     build 2326
   end
 
-  # Stripping breaks dynamic loading
-  skip_clean :all
+  env :std
 
-  def options
-    [["--enable-debug", "Build with debugger hooks."]]
-  end
+  conflicts_with "node",
+    :because => "Differing versions of the same formulae."
 
   def install
-    unless ARGV.build_devel?
-      inreplace 'wscript' do |s|
-        s.gsub! '/usr/local', HOMEBREW_PREFIX
-        s.gsub! '/opt/local/lib', '/usr/lib'
-      end
+    inreplace "wscript" do |s|
+      s.gsub! "/usr/local", HOMEBREW_PREFIX
+      s.gsub! "/opt/local/lib", "/usr/lib"
     end
 
-    # Why skip npm install? Read https://github.com/mxcl/homebrew/pull/8784.
     args = ["--prefix=#{prefix}", "--without-npm"]
-    args << "--debug" if ARGV.include? '--enable-debug'
+    args << "--debug" if build.with? "debug"
+    args << "--openssl-includes=#{Formula["openssl"].include}"
+    args << "--openssl-libpath=#{Formula["openssl"].lib}"
 
     system "./configure", *args
-    system "make install"
+    system "make", "install"
   end
 
   def caveats
     <<-EOS.undent
-      Homebrew has NOT installed npm. We recommend the following method of
-      installation:
-        curl http://npmjs.org/install.sh | sh
+      Homebrew has NOT installed npm.
 
       After installing, add the following path to your NODE_PATH environment
       variable to have npm libraries picked up:

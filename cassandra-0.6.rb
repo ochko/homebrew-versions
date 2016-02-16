@@ -1,20 +1,23 @@
-require 'formula'
-
 class Cassandra06 < Formula
-  homepage 'http://cassandra.apache.org'
-  url 'http://www.apache.org/dyn/closer.cgi?path=/cassandra/0.6.13/apache-cassandra-0.6.13-bin.tar.gz'
-  sha1 'fc4978661b3fd7e70e4bc291e6c863ad8c2b741f'
+  desc "Eventually consistent, distributed key-value store"
+  homepage "https://cassandra.apache.org"
+  url "https://archive.apache.org/dist/cassandra/0.6.13/apache-cassandra-0.6.13-bin.tar.gz"
+  sha256 "ed77d551b2cfed2bfc8e9896bd1afc501b41aa15fee83fbe9076b4e69b39e5d1"
+
+  bottle :unneeded
+
+  conflicts_with "cassandra", :because => "Differing versions of the same formula"
 
   def install
-    (var+"lib/cassandra").mkpath
-    (var+"log/cassandra").mkpath
-    (etc+"cassandra").mkpath
+    (var/"lib/cassandra").mkpath
+    (var/"log/cassandra").mkpath
+    (etc/"cassandra").mkpath
 
     inreplace "conf/storage-conf.xml", "/var/lib/cassandra", "#{var}/lib/cassandra"
     inreplace "conf/log4j.properties", "/var/log/cassandra", "#{var}/log/cassandra"
 
     inreplace "bin/cassandra.in.sh" do |s|
-      s.gsub! "cassandra_home=`dirname $0`/..", "cassandra_home=#{prefix}"
+      s.gsub! "cassandra_home=`dirname $0`/..", "cassandra_home=#{libexec}"
       # Store configs in etc, outside of keg
       s.gsub! "CASSANDRA_CONF=$cassandra_home/conf", "CASSANDRA_CONF=#{etc}/cassandra"
       # Jars installed to prefix, no longer in a lib folder
@@ -23,8 +26,9 @@ class Cassandra06 < Formula
 
     rm Dir["bin/*.bat"]
 
-    (etc+"cassandra").install Dir["conf/*"]
-    prefix.install Dir["*.txt"] + Dir["{bin,interface,javadoc}"]
-    prefix.install Dir["lib/*.jar"]
+    (etc/"cassandra").install Dir["conf/*"]
+    libexec.install Dir["*.txt", "{bin,interface,javadoc,pylib,lib/licenses}"]
+    libexec.install Dir["lib/*.jar"]
+    bin.write_exec_script Dir["#{libexec}/bin/*"]
   end
 end

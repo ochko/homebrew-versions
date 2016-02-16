@@ -1,70 +1,78 @@
-require 'formula'
-require 'hardware'
-
 class Postgresql9 < Formula
-  homepage 'http://www.postgresql.org/'
-  url 'http://ftp.postgresql.org/pub/source/v9.0.8/postgresql-9.0.8.tar.bz2'
-  sha1 '240d2d45bc87d8cdad8e2b74cf378f5668b604fe'
+  desc "Object-relational database system"
+  homepage "http://www.postgresql.org/"
+  url "http://ftp.postgresql.org/pub/source/v9.0.22/postgresql-9.0.22.tar.bz2"
+  sha256 "94d4b20d854cd7fa4c9c322c0b602751edbc5ca0d4f29fe92f996e28bb32f8a5"
 
-  depends_on 'readline'
-  depends_on 'libxml2' if MacOS.version == :leopard
-  depends_on 'ossp-uuid'
-
-  def options
-    [
-      ['--no-python', 'Build without Python support.'],
-      ['--no-perl', 'Build without Perl support.'],
-      ['--enable-dtrace', 'Build with DTrace support.']
-    ]
+  bottle do
+    sha256 "a9136942f2c992ca61b4d616edc663c134c08e1822299963a36e5df8a4cd475e" => :yosemite
+    sha256 "6b36731bc9bdcf4942bcf9cd19ab7b93f3384207466e85b7f8e1145d6a1543e3" => :mavericks
+    sha256 "f2bd3036934640a771d8d33e715acaa851bd3f7e0b33dc1a11f7069aac2b508d" => :mountain_lion
   end
 
-  skip_clean :all
+  option "without-python", "Build without Python support"
+  option "without-perl", "Build without Perl support"
+  option "without-tcl", "Build without Tcl support"
+  option "with-dtrace", "Build with DTrace support"
+
+  deprecated_option "no-python" => "without-python"
+  deprecated_option "no-perl" => "without-perl"
+  deprecated_option "no-tcl" => "without-tcl"
+  deprecated_option "enable-dtrace" => "with-dtrace"
+
+  depends_on "openssl"
+  depends_on "readline"
+  depends_on "libxml2" if MacOS.version == :leopard
+  depends_on "ossp-uuid" => :recommended
+
+  # Fix uuid-ossp build issues: http://archives.postgresql.org/pgsql-general/2012-07/msg00654.php
+  patch :DATA
 
   def install
     ENV.libxml2 if MacOS.version >= :snow_leopard
 
-    args = ["--disable-debug",
-            "--prefix=#{prefix}",
-            "--enable-thread-safety",
-            "--with-bonjour",
-            "--with-gssapi",
-            "--with-krb5",
-            "--with-openssl",
-            "--with-libxml", "--with-libxslt"]
+    args = %W[
+      --disable-debug
+      --prefix=#{prefix}
+      --datadir=#{share}/#{name}
+      --docdir=#{doc}
+      --enable-thread-safety
+      --with-bonjour
+      --with-gssapi
+      --with-krb5
+      --with-openssl
+      --with-libxml
+      --with-libxslt
+    ]
 
-    args << "--with-python" unless ARGV.include? '--no-python'
-    args << "--with-perl" unless ARGV.include? '--no-perl'
-    args << "--enable-dtrace" if ARGV.include? '--enable-dtrace'
+    args << "--with-ossp-uuid" if build.with? "ossp-uuid"
+    args << "--with-python" if build.with? "python"
+    args << "--with-perl" if build.with? "perl"
 
-    args << "--with-ossp-uuid"
+    # The CLT is required to build tcl support on 10.7 and 10.8 because tclConfig.sh is not part of the SDK
+    if build.with?("tcl") && (MacOS.version >= :mavericks || MacOS::CLT.installed?)
+      args << "--with-tcl"
 
-    args << "--datadir=#{share}/#{name}"
-    args << "--docdir=#{doc}"
+      if File.exist?("#{MacOS.sdk_path}/usr/lib/tclConfig.sh")
+        args << "--with-tclconfig=#{MacOS.sdk_path}/usr/lib"
+      end
+    end
 
-    ENV.append 'CFLAGS', `uuid-config --cflags`.strip
-    ENV.append 'LDFLAGS', `uuid-config --ldflags`.strip
-    ENV.append 'LIBS', `uuid-config --libs`.strip
+    args << "--enable-dtrace" if build.with? "dtrace"
 
-    if MacOS.prefer_64_bit? and not ARGV.include? '--no-python'
+    if build.with? "ossp-uuid"
+      ENV.append "CFLAGS", `uuid-config --cflags`.strip
+      ENV.append "LDFLAGS", `uuid-config --ldflags`.strip
+      ENV.append "LIBS", `uuid-config --libs`.strip
+    end
+
+    if MacOS.prefer_64_bit? && build.with?("python")
       args << "ARCHFLAGS='-arch x86_64'"
       check_python_arch
     end
 
-    # Fails on Core Duo with O4 and O3
-    ENV.O2 if Hardware.intel_family == :core
-
     system "./configure", *args
-    system "make install"
-    system "make install-docs"
-
-    contrib_directories = Dir.glob("contrib/*").select{ |path| File.directory?(path) } - ['contrib/start-scripts']
-
-    contrib_directories.each do |contrib_directory|
-      system "cd #{contrib_directory}; make install"
-    end
-
-    (prefix+'org.postgresql.postgres.plist').write startup_plist
-    (prefix+'org.postgresql.postgres.plist').chmod 0644
+    system "make", "install-world"
   end
 
   def check_python_arch
@@ -93,82 +101,77 @@ class Postgresql9 < Formula
   end
 
   def caveats
-    s = <<-EOS
-If builds of PostgreSQL 9 are failing and you have version 8.x installed,
-you may need to remove the previous version first. See:
-  https://github.com/mxcl/homebrew/issues/issue/2510
+    s = <<-EOS.undent
+      If builds of PostgreSQL 9 are failing and you have version 8.x installed,
+      you may need to remove the previous version first. See:
+        https://github.com/mxcl/homebrew/issues/issue/2510
 
-To build plpython against a specific Python, set PYTHON prior to brewing:
-  PYTHON=/usr/local/bin/python  brew install postgresql
-See:
-  http://www.postgresql.org/docs/9.0/static/install-procedure.html
+      To build plpython against a specific Python, set PYTHON prior to brewing:
+        PYTHON=/usr/local/bin/python brew install postgresql
+      See:
+        http://www.postgresql.org/docs/9.0/static/install-procedure.html
 
+      If this is your first install, create a database with:
+        initdb #{var}/postgres9
 
-If this is your first install, create a database with:
-  initdb #{var}/postgres9
+      Some machines may require provisioning of shared memory:
+        http://www.postgresql.org/docs/current/static/kernel-resources.html#SYSVIPC
+    EOS
 
-If this is your first install, automatically load on login with:
-  mkdir -p ~/Library/LaunchAgents
-  cp #{prefix}/org.postgresql.postgres.plist ~/Library/LaunchAgents/
-  launchctl load -w ~/Library/LaunchAgents/org.postgresql.postgres.plist
+    if MacOS.prefer_64_bit?
+      s << "\n" << <<-EOS.undent
+        When installing the postgres gem, including ARCHFLAGS is recommended:
+          ARCHFLAGS="-arch x86_64" gem install pg
 
-If this is an upgrade and you already have the org.postgresql.postgres.plist loaded:
-  launchctl unload -w ~/Library/LaunchAgents/org.postgresql.postgres.plist
-  cp #{prefix}/org.postgresql.postgres.plist ~/Library/LaunchAgents/
-  launchctl load -w ~/Library/LaunchAgents/org.postgresql.postgres.plist
-
-Or start manually with:
-  pg_ctl -D #{var}/postgres9 -l #{var}/postgres9/server.log start
-
-And stop with:
-  pg_ctl -D #{var}/postgres9 stop -s -m fast
-
-
-Some machines may require provisioning of shared memory:
-  http://www.postgresql.org/docs/current/static/kernel-resources.html#SYSVIPC
-EOS
-
-    if MacOS.prefer_64_bit? then
-      s << <<-EOS
-
-If you want to install the postgres gem, including ARCHFLAGS is recommended:
-    env ARCHFLAGS="-arch x86_64" gem install pg
-
-To install gems without sudo, see the Homebrew wiki.
+        To install gems without sudo, see the Homebrew wiki.
       EOS
     end
-
-    return s
+    s
   end
 
-  def startup_plist
-    return <<-EOPLIST
-<?xml version="1.0" encoding="UTF-8"?>
-<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
-<plist version="1.0">
-<dict>
-  <key>KeepAlive</key>
-  <true/>
-  <key>Label</key>
-  <string>org.postgresql.postgres</string>
-  <key>ProgramArguments</key>
-  <array>
-    <string>#{bin}/postgres</string>
-    <string>-D</string>
-    <string>#{var}/postgres9</string>
-    <string>-r</string>
-    <string>#{var}/postgres9/server.log</string>
-  </array>
-  <key>RunAtLoad</key>
-  <true/>
-  <key>UserName</key>
-  <string>#{`whoami`.chomp}</string>
-  <key>WorkingDirectory</key>
-  <string>#{HOMEBREW_PREFIX}</string>
-  <key>StandardErrorPath</key>
-  <string>#{var}/postgres9/server.log</string>
-</dict>
-</plist>
-    EOPLIST
+  plist_options :manual => "pg_ctl -D #{HOMEBREW_PREFIX}/var/postgres -l #{HOMEBREW_PREFIX}/var/postgres/server.log start"
+
+  def plist; <<-EOS.undent
+    <?xml version="1.0" encoding="UTF-8"?>
+    <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+    <plist version="1.0">
+    <dict>
+      <key>KeepAlive</key>
+      <true/>
+      <key>Label</key>
+      <string>#{plist_name}</string>
+      <key>ProgramArguments</key>
+      <array>
+        <string>#{opt_prefix}/bin/postgres</string>
+        <string>-D</string>
+        <string>#{var}/postgres</string>
+        <string>-r</string>
+        <string>#{var}/postgres/server.log</string>
+      </array>
+      <key>RunAtLoad</key>
+      <true/>
+      <key>WorkingDirectory</key>
+      <string>#{HOMEBREW_PREFIX}</string>
+    </dict>
+    </plist>
+    EOS
+  end
+
+  test do
+    system "#{bin}/initdb", testpath/"test"
   end
 end
+
+__END__
+diff --git a/contrib/uuid-ossp/uuid-ossp.c b/contrib/uuid-ossp/uuid-ossp.c
+index d4fc62b..62b28ca 100644
+--- a/contrib/uuid-ossp/uuid-ossp.c
++++ b/contrib/uuid-ossp/uuid-ossp.c
+@@ -9,6 +9,7 @@
+  *-------------------------------------------------------------------------
+  */
+
++#define _XOPEN_SOURCE
+ #include "postgres.h"
+ #include "fmgr.h"
+ #include "utils/builtins.h"

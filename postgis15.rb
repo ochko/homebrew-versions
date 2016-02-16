@@ -1,33 +1,21 @@
-require 'formula'
-
-def build_gui?
-  ARGV.include? '--with-gui'
-end
-
 class Postgis15 < Formula
-  homepage 'http://postgis.refractions.net'
-  url 'http://postgis.refractions.net/download/postgis-1.5.3.tar.gz'
-  sha1 'e8c572e0258ba760a67b7f717bdc8321b9f6cd58'
+  desc "Adds support for geographic objects to PostgreSQL"
+  homepage "http://postgis.refractions.net"
+  url "http://download.osgeo.org/postgis/source/postgis-1.5.8.tar.gz"
+  sha256 "4896fdae2f814b88c3ca458b7d01d7eca7e9aca021599c817919f131a1b0d804"
 
-  depends_on 'postgresql'
-  depends_on 'proj'
-  depends_on 'geos'
+  keg_only "Conflicts with postgis in main repository."
 
-  depends_on 'gtk+' if build_gui?
+  option "with-gui", "Build sh2pgsql-gui in addition to CLI tools"
 
-  def options
-    [
-      ['--with-gui', 'Build shp2pgsql-gui in addition to command line tools']
-    ]
-  end
-
-  # PostGIS command line tools intentionally have unused symbols in
-  # them---these are callbacks for liblwgeom.
-  skip_clean :all
+  depends_on "postgresql9"
+  depends_on "proj"
+  depends_on "geos"
+  depends_on "gtk+" if build.with? "gui"
 
   def install
     ENV.deparallelize
-    postgresql = Formula.factory 'postgresql'
+    postgresql = Formula["postgresql9"]
 
     args = [
       "--disable-dependency-tracking",
@@ -37,12 +25,12 @@ class Postgis15 < Formula
       # This is against Homebrew guidelines, but we have to do it as the
       # PostGIS plugin libraries can only be properly inserted into Homebrew's
       # Postgresql keg.
-      "--with-pgconfig=#{postgresql.bin}/pg_config"
+      "--with-pgconfig=#{postgresql.bin}/pg_config",
     ]
-    args << '--with-gui' if build_gui?
+    args << "--with-gui" if build.with? "gui"
 
-    system './configure', *args
-    system 'make'
+    system "./configure", *args
+    system "make"
 
     # __DON'T RUN MAKE INSTALL!__
     #
@@ -55,17 +43,17 @@ class Postgis15 < Formula
     # Install PostGIS plugin libraries into the Postgres keg so that they can
     # be loaded and so PostGIS databases will continue to function even if
     # PostGIS is removed.
-    postgresql.lib.install Dir['postgis/postgis*.so']
+    postgresql.lib.install Dir["postgis/postgis*.so"]
 
     # Stand-alone SQL files will be installed the share folder
-    postgis_sql = share + 'postgis'
+    postgis_sql = share + "postgis"
 
     bin.install %w[
       loader/pgsql2shp
       loader/shp2pgsql
       utils/new_postgis_restore.pl
     ]
-    bin.install 'loader/shp2pgsql-gui' if build_gui?
+    bin.install "loader/shp2pgsql-gui" if build.with? "gui"
 
     # Install PostGIS 1.x upgrade scripts
     postgis_sql.install %w[
@@ -94,8 +82,8 @@ class Postgis15 < Formula
     ]
   end
 
-  def caveats;
-    postgresql = Formula.factory 'postgresql'
+  def caveats
+    postgresql = Formula["postgresql9"]
 
     <<-EOS.undent
       To create a spatially-enabled database, see the documentation:

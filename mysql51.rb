@@ -1,99 +1,87 @@
-require 'formula'
-
 class Mysql51 < Formula
-  homepage 'http://dev.mysql.com/doc/refman/5.1/en/'
-  url 'http://mysql.mirrors.pair.com/Downloads/MySQL-5.1/mysql-5.1.65.tar.gz'
-  sha1 '9af3740d0a9f3fb2a9423500dd298b423867cf6e'
+  desc "Open source relational database management system"
+  homepage "https://dev.mysql.com/doc/refman/5.1/en/"
+  url "http://mysql.mirrors.pair.com/Downloads/MySQL-5.1/mysql-5.1.73.tar.gz"
+  sha256 "05ebe21305408b24407d14b77607a3e5ffa3c300e03f1359d3066f301989dcb5"
+  revision 1
 
-  depends_on 'readline'
-
-  fails_with :clang do
-    build 421
-    cause "Reported not building with clang as of 2011.06.27"
+  bottle do
+    revision 1
+    sha256 "d03726056870c34cdff2174fe9f4379c445f09f03fdc73322f8a0834e1c0e43f" => :yosemite
+    sha256 "6b640d89f060eedfd5495afb7dee9f1a08101bcd03d578654133de6b7175730a" => :mavericks
+    sha256 "b8aed24d951594d08cb8759046d2eb7b6852b7b653dbce1b294be376fbca18ee" => :mountain_lion
   end
 
   option :universal
+  option "with-tests", "Keep tests when installing"
+  option "with-bench", "Keep benchmark app when installing"
+  option "with-embedded", "Build the embedded server"
+  option "without-server", "Only install client tools, not the server"
+  option "with-utf8-default", "Set the default character set to utf8"
 
-  def options
-    [
-      ['--with-tests', "Keep tests when installing."],
-      ['--with-bench', "Keep benchmark app when installing."],
-      ['--with-embedded', "Build the embedded server."],
-      ['--client-only', "Only install client tools, not the server."],
-      ['--with-utf8-default', "Set the default character set to utf8"]
-    ]
-  end
+  deprecated_option "client-only" => "without-server"
 
-  def patches
-    DATA
-  end
+  keg_only "Conflicts with mysql, mariadb, percona-server, mysql-cluster, etc."
+
+  depends_on "readline"
+  depends_on "openssl" => :recommended
+
+  fails_with :clang
+
+  patch :DATA
 
   def install
     # Make universal for bindings to universal applications
     ENV.universal_binary if build.universal?
 
-    configure_args = [
-      "--without-docs",
-      "--without-debug",
-      "--disable-dependency-tracking",
-      "--prefix=#{prefix}",
-      "--localstatedir=#{var}/mysql",
-      "--sysconfdir=#{etc}",
-      "--with-plugins=innobase,myisam",
-      "--with-extra-charsets=complex",
-      "--with-ssl",
-      "--without-readline", # Confusingly, means "use detected readline instead of included readline"
-      "--enable-assembler",
-      "--enable-thread-safe-client",
-      "--enable-local-infile",
-      "--enable-shared",
-      "--with-partition"]
+    # "without-readline" = "use detected readline instead of included readline"
+    args = %W[
+      --without-docs
+      --without-debug
+      --disable-dependency-tracking
+      --prefix=#{prefix}
+      --localstatedir=#{var}/mysql
+      --sysconfdir=#{etc}
+      --with-plugins=innobase,myisam
+      --with-extra-charsets=complex
+      --without-readline
+      --enable-assembler
+      --enable-thread-safe-client
+      --enable-local-infile
+      --enable-shared
+      --with-partition
+    ]
 
-    configure_args << "--without-server" if ARGV.include? '--client-only'
-    configure_args << "--with-embedded-server" if ARGV.include? '--with-embedded'
-    configure_args << "--with-charset=utf8" if ARGV.include? '--with-utf8-default'
+    args << "--without-server" if build.without? "server"
+    args << "--with-embedded-server" if build.with? "embedded"
+    args << "--with-charset=utf8" if build.with? "utf8-default"
 
-    system "./configure", *configure_args
-    system "make install"
+    if build.with? "openssl"
+      args << "--with-ssl=#{Formula["openssl"].opt_prefix}"
+    else
+      args << "with-ssl"
+    end
 
-    ln_s "#{libexec}/mysqld", bin
-    ln_s "#{share}/mysql/mysql.server", bin
+    system "./configure", *args
+    system "make", "install"
 
-    (prefix+'mysql-test').rmtree unless ARGV.include? '--with-tests' # save 66MB!
-    (prefix+'sql-bench').rmtree unless ARGV.include? '--with-bench'
+    ln_s libexec/"mysqld", bin
+    ln_s share/"mysql/mysql.server", bin
 
-    (prefix+'com.mysql.mysqld.plist').write startup_plist
+    (prefix+"mysql-test").rmtree if build.without? "tests" # save 66MB!
+    (prefix+"sql-bench").rmtree if build.without? "bench"
   end
 
   def caveats; <<-EOS.undent
     Set up databases with:
-        unset TMPDIR
-        mysql_install_db
-
-    If this is your first install, automatically load on login with:
-        mkdir -p ~/Library/LaunchAgents
-        cp #{prefix}/com.mysql.mysqld.plist ~/Library/LaunchAgents/
-        launchctl load -w ~/Library/LaunchAgents/com.mysql.mysqld.plist
-
-    If this is an upgrade and you already have the com.mysql.mysqld.plist loaded:
-        launchctl unload -w ~/Library/LaunchAgents/com.mysql.mysqld.plist
-        cp #{prefix}/com.mysql.mysqld.plist ~/Library/LaunchAgents/
-        launchctl load -w ~/Library/LaunchAgents/com.mysql.mysqld.plist
-
-    Note on upgrading:
-        We overwrite any existing com.mysql.mysqld.plist in ~/Library/LaunchAgents
-        if we are upgrading because previous versions of this brew created the
-        plist with a version specific program argument.
-
-    Or start manually with:
-        mysql.server start
-
-    This article may help in troubleshooting MySQL installs:
-        http://cloudbacon.com/2011/03/20/fixing-mysql-in-homebrew/
+      unset TMPDIR
+      mysql_install_db
     EOS
   end
 
-  def startup_plist; <<-EOPLIST.undent
+  plist_options :manual => "mysql.server start"
+
+  def plist; <<-EOPLIST.undent
     <?xml version="1.0" encoding="UTF-8"?>
     <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
     <plist version="1.0">
@@ -101,21 +89,22 @@ class Mysql51 < Formula
       <key>KeepAlive</key>
       <true/>
       <key>Label</key>
-      <string>com.mysql.mysqld</string>
+      <string>#{plist_name}</string>
       <key>Program</key>
-      <string>#{bin}/mysqld_safe</string>
+      <string>#{opt_prefix}/bin/mysqld_safe</string>
       <key>RunAtLoad</key>
       <true/>
-      <key>UserName</key>
-      <string>#{`whoami`.chomp}</string>
       <key>WorkingDirectory</key>
       <string>#{var}</string>
     </dict>
     </plist>
     EOPLIST
   end
-end
 
+  test do
+    system bin/"mysql_config", "--libs", "--include"
+  end
+end
 
 __END__
 --- old/scripts/mysqld_safe.sh  2009-09-02 04:10:39.000000000 -0400

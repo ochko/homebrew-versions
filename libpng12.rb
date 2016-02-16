@@ -1,25 +1,45 @@
-require 'formula'
-
 class Libpng12 < Formula
-  homepage 'http://www.libpng.org/pub/png/libpng.html'
-  url 'http://sourceforge.net/projects/libpng/files/libpng12/1.2.50/libpng-1.2.50.tar.gz'
-  sha1 'aeb8afdfed3a8be46c9a7be4aa853bce73f03d9e'
+  desc "Library for manipulating PNG images"
+  homepage "http://www.libpng.org/pub/png/libpng.html"
+  url "ftp://ftp.simplesystems.org/pub/libpng/png/src/libpng12/libpng-1.2.54.tar.xz"
+  mirror "https://dl.bintray.com/homebrew/mirror/libpng-1.2.54.tar.xz"
+  sha256 "cf85516482780f2bc2c5b5073902f12b1519019d47bf473326c2018bdff1d272"
+
+  bottle do
+    cellar :any
+    sha256 "2107dbd088fdca3d22309544ab274ace0b8faaf543c04eae04aa07fcc0d37ac9" => :el_capitan
+    sha256 "4c63b890aaede4ff236c566f0849d0b555daaf62381107ea7bd04e8287cd91cb" => :yosemite
+    sha256 "ca5fbfd49eec9613db17ad8d142011780500e419ac3ebd4c5c73753774ce842b" => :mavericks
+  end
 
   keg_only :provided_by_osx
 
-  def install
-    system "./configure", "--disable-dependency-tracking", "--prefix=#{prefix}"
-    system "make install"
-    system "make test"
+  option :universal
 
-    # Move included test programs into libexec for later use
-    libexec.install 'pngtest.png', '.libs/pngtest'
+  def install
+    ENV.universal_binary if build.universal?
+
+    system "./configure", "--disable-dependency-tracking",
+                          "--disable-silent-rules",
+                          "--prefix=#{prefix}"
+    system "make"
+    system "make", "test"
+    system "make", "install"
   end
 
-  def test
-    mktemp do
-      system "#{libexec}/pngtest", "#{libexec}/pngtest.png"
-      system "/usr/bin/qlmanage", "-p", "pngout.png"
-    end
+  test do
+    (testpath/"test.c").write <<-EOS.undent
+      #include <png.h>
+
+      int main()
+      {
+        png_structp png_ptr;
+        png_ptr = png_create_write_struct(PNG_LIBPNG_VER_STRING, NULL, NULL, NULL);
+        png_destroy_write_struct(&png_ptr, (png_infopp)NULL);
+        return 0;
+      }
+    EOS
+    system ENV.cc, "test.c", "-I#{include}", "-L#{lib}", "-lpng", "-o", "test"
+    system "./test"
   end
 end
